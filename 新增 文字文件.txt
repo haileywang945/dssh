@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>青春不NG：視覺小說模擬器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe',
+                            500: '#8b5cf6', 600: '#7c3aed', 900: '#4c1d95',
+                        }
+                    },
+                    animation: {
+                        'float': 'float 3s ease-in-out infinite',
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+                        'slide-up': 'slideUp 0.4s ease-out forwards',
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                        'pan-bg': 'panBg 30s linear infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        shake: {
+                            '10%, 90%': { transform: 'translate3d(-2px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(3px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-5px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(5px, 0, 0)' }
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 10px rgba(139,92,246,0.3)' },
+                            '50%': { boxShadow: '0 0 20px rgba(139,92,246,0.8)' },
+                        },
+                        panBg: {
+                            '0%': { backgroundPosition: '0% 0%' },
+                            '50%': { backgroundPosition: '100% 100%' },
+                            '100%': { backgroundPosition: '0% 0%' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        /* 塔羅牌 3D 翻轉效果 */
+        .tarot-card { perspective: 1000px; cursor: pointer; }
+        .tarot-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.8s; transform-style: preserve-3d; }
+        .tarot-card.flipped .tarot-inner { transform: rotateY(180deg); }
+        .tarot-front, .tarot-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 1rem; }
+        .tarot-front { transform: rotateY(180deg); } /* 內容面 (翻開後顯示) */
+        .tarot-back { background: linear-gradient(135deg, #1e1b4b, #4c1d95); border: 2px solid #8b5cf6; } /* 背面 (初始顯示) */
+        
+        /* VN 背景遮罩 (遊戲中地圖疊加) */
+        .vn-bg-overlay { 
+            background: radial-gradient(circle at center, transparent 0%, rgba(15,23,42,0.8) 100%); 
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white overflow-x-hidden">
+
+    <!-- 全域背景：遊戲中隱約透出地圖 (已修正檔名) -->
+    <div class="fixed inset-0 z-[-1] opacity-10 bg-cover bg-center bg-no-repeat pointer-events-none" style="background-image: url('人際互動背景地圖.png');"></div>
+
+    <!-- === 首頁 (Start Screen) === -->
+    <div id="startScreen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center transition-opacity duration-1000">
+        <div class="absolute inset-0 bg-cover bg-center animate-pan-bg" style="background-image: url('人際互動背景地圖.png');"></div>
+        <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"></div>
+        
+        <div class="relative z-10 flex flex-col items-center text-center p-6 bg-slate-900/60 border border-brand-500/30 rounded-3xl shadow-[0_0_50px_rgba(139,92,246,0.2)] backdrop-blur-md max-w-2xl w-full mx-4">
+            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/40 mb-6 animate-float">
+                <i class="fa-solid fa-gamepad text-4xl"></i>
+            </div>
+            <h1 class="font-black text-4xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-white via-brand-100 to-brand-300 mb-4 drop-shadow-lg">
+                青春不NG
+            </h1>
+            <p class="text-brand-300 tracking-[0.3em] font-bold mb-8 text-sm md:text-base bg-brand-900/40 px-4 py-1 rounded-full border border-brand-500/50">
+                高中生人際互動模擬器
+            </p>
+            <p class="text-slate-300 mb-10 max-w-md leading-relaxed">
+                在虛擬的校園情境中，體驗不同溝通方式帶來的連鎖反應。<br>每一次選擇，都在形塑你的社交面貌。
+            </p>
+            <button id="enterGameBtn" class="px-10 py-4 bg-white text-brand-900 hover:bg-brand-100 rounded-full font-black text-xl shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all transform hover:scale-105 hover:-translate-y-1">
+                進入模擬 <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <i class="fa-solid fa-gamepad"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-lg text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 hidden sm:block">
+                        青春不NG <span class="text-xs bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full font-normal ml-2 tracking-widest border border-brand-500/30">視覺小說版</span>
+                    </h1>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- 地圖按鈕 -->
+                <button id="openMapBtn" class="px-3 py-1.5 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-500/30 flex items-center gap-2 text-sm font-bold shadow-[0_0_10px_rgba(79,70,229,0.2)]">
+                    <i class="fa-solid fa-map-location-dot"></i> <span>人際地圖</span>
+                </button>
+                <!-- 音樂開關按鈕 -->
+                <button id="toggleMusicBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="播放/暫停背景音樂">
+                    <i class="fa-solid fa-music-slash"></i>
+                </button>
+                <button id="restartBtn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="重新開始">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+        
+        <!-- 左側主畫面區 (視覺小說舞台) -->
+        <div class="lg:col-span-8 flex flex-col gap-4">
+            
+            <!-- 視覺小說主舞台 -->
+            <div id="vnStage" class="relative w-full h-[450px] sm:h-[500px] rounded-2xl overflow-hidden shadow-2xl border border-slate-800 transition-all duration-700 bg-slate-900">
+                <!-- 背景圖片 (用 CSS 漸層與圖案模擬) -->
+                <div id="stageBg" class="absolute inset-0 bg-gradient-to-b from-blue-900/40 to-slate-900 transition-colors duration-1000">
+                    <!-- 格狀裝飾 -->
+                    <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 24px 24px;"></div>
+                </div>
+                
+                <!-- 視覺小說遮罩 -->
+                <div class="absolute inset-0 vn-bg-overlay z-10"></div>
+
+                <!-- 場景資訊標籤 -->
+                <div class="absolute top-4 left-4 z-20 flex flex-col gap-2">
+                    <span id="sceneLocation" class="bg-black/60 backdrop-blur-sm text-slate-300 text-xs px-3 py-1.5 rounded-full border border-slate-700/50 flex items-center gap-2 w-max">
+                        <i class="fa-solid fa-location-dot text-brand-400"></i> <span>載入中...</span>
+                    </span>
+                    <!-- 當前塔羅牌狀態 -->
+                    <div id="activeTarotDisplay" class="hidden bg-purple-900/60 backdrop-blur-sm text-purple-200 text-xs px-3 py-1.5 rounded-full border border-purple-500/50 items-center gap-2 w-max animate-pulse-glow">
+                        <i class="fa-solid fa-star"></i> 靈感守護：<span id="activeTarotName" class="font-bold">無</span>
+                    </div>
+                </div>
+
+                <!-- 突發事件全螢幕覆蓋層 -->
+                <div id="randomEventOverlay" class="absolute inset-0 bg-red-950/90 backdrop-blur-md z-40 hidden flex-col items-center justify-center p-6 text-center">
+                    <div class="w-20 h-20 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center text-4xl mb-4 border-2 border-red-500/50 animate-shake">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <h3 class="text-2xl font-black text-white mb-2 tracking-widest text-shadow">突發狀況！</h3>
+                    <p class="text-sm text-slate-200 mb-8 max-w-md leading-relaxed bg-black/40 p-4 rounded-xl border border-red-900/50" id="eventDesc">
+                        事件描述...
+                    </p>
+                    <div class="w-full max-w-sm flex flex-col gap-3" id="eventChoices">
+                        <!-- 動態生成選項 -->
+                    </div>
+                </div>
+
+                <!-- 角色立繪 (CSS/SVG 繪製) -->
+                <div id="characterSpriteContainer" class="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-20 transition-all duration-500 opacity-0 translate-y-10">
+                    <!-- SVG 立繪動態注入 -->
+                    <div id="characterSVG" class="w-64 h-80 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]"></div>
+                </div>
+
+                <!-- 對話框 (置於底部) -->
+                <div class="absolute bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-black via-slate-950/95 to-transparent pt-12">
+                    <div class="relative bg-slate-900/80 backdrop-blur-lg border border-slate-700/50 rounded-2xl p-5 shadow-2xl">
+                        <!-- 講者名稱名牌 -->
+                        <div class="absolute -top-4 left-6 bg-brand-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg border border-brand-400">
+                            <span id="speakerName">系統</span>
+                        </div>
+                        
+                        <!-- 對話文字 -->
+                        <div id="dialogText" class="text-slate-200 text-base md:text-lg leading-relaxed mt-1 min-h-[3rem]">
+                            「準備開始遊戲...」
+                        </div>
+
+                        <!-- 玩家內心小劇場 (濾鏡) -->
+                        <div id="innerTheater" class="mt-3 bg-amber-900/30 border border-amber-700/50 rounded-xl p-3 hidden flex items-start gap-3">
+                            <i class="fa-solid fa-brain-circuit text-amber-500 mt-0.5"></i>
+                            <div>
+                                <p class="text-xs font-bold text-amber-400 mb-1">內心小劇場 (認知濾鏡)</p>
+                                <p id="innerTheaterText" class="text-xs text-amber-200/80">...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 玩家決策選項區塊 -->
+            <div id="choiceContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                <!-- 選項動態生成 -->
+            </div>
+
+            <!-- 讀心透視鏡與反饋 -->
+            <div id="feedbackPanel" class="hidden bg-slate-800/80 border border-slate-700 rounded-2xl p-5 mt-2 shadow-inner">
+                <h4 class="text-brand-400 font-bold text-sm mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-eye"></i> 讀心透視鏡 (對方的真實想法)
+                </h4>
+                <p id="feedbackText" class="text-sm text-slate-300 leading-relaxed mb-4">
+                    反饋內容...
+                </p>
+                <button id="nextStepBtn" class="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-500/20">
+                    繼續劇情 <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+
+        </div>
+
+        <div class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- 隱喻數值儀表板 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5 sticky top-20">
+                <h3 class="font-black text-slate-100 text-base border-b border-slate-800 pb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-brand-400"></i> 人際狀態儀表板
+                </h3>
+
+                <!-- 1. 社交電量 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-end">
+                        <span class="text-xs font-bold text-emerald-400"><i class="fa-solid fa-battery-three-quarters mr-1"></i> 社交電量</span>
+                        <span id="batteryVal" class="text-sm font-black text-white">80%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                        <div id="batteryBar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-700 ease-out" style="width: 80%"></div>
+                    </div>
+                </div>
+
+                <!-- 2. 關係距離 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-end">
+                        <span class="text-xs font-bold text-sky-400"><i class="fa-solid fa-people-arrows mr-1"></i> 關係距離</span>
+                        <span id="distanceVal" class="text-xs font-bold text-slate-300">舒適區</span>
+                    </div>
+                    <div class="relative pt-1">
+                        <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700 relative">
+                            <!-- 舒適區高亮 -->
+                            <div class="absolute inset-y-0 left-[35%] right-[35%] bg-sky-500/20"></div>
+                            <div id="distanceIndicator" class="bg-sky-400 h-full w-3 absolute transition-all duration-700 ease-out rounded-full shadow-[0_0_8px_#38bdf8]" style="left: 50%; transform: translateX(-50%);"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1 px-1">
+                            <span>疏離</span>
+                            <span>舒適</span>
+                            <span>窒息</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. 社交面具 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-end">
+                        <span class="text-xs font-bold text-pink-400"><i class="fa-solid fa-masks-theater mr-1"></i> 偽裝面具</span>
+                        <span id="maskVal" class="text-xs font-bold text-slate-300">30%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                        <div id="maskBar" class="bg-gradient-to-r from-pink-500 to-rose-400 h-full transition-all duration-700 ease-out" style="width: 30%"></div>
+                    </div>
+                </div>
+
+                <!-- 教師輔導專區提示 -->
+                <div class="mt-6 pt-4 border-t border-slate-800">
+                    <div class="bg-brand-900/20 border border-brand-500/30 rounded-xl p-3">
+                        <h4 class="text-xs font-bold text-brand-300 mb-1"><i class="fa-solid fa-lightbulb"></i> 教學引導亮點</h4>
+                        <p id="teachingTip" class="text-[11px] text-slate-400 leading-relaxed">
+                            等待遊戲開始...
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- === 地圖觀看器 Modal === -->
+    <div id="mapModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[70] flex flex-col transition-opacity duration-300 opacity-0 hidden">
+        <div class="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900/90 shadow-lg shrink-0">
+            <h3 class="text-xl font-black text-brand-400 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-brand-900/50 border border-brand-500/30 flex items-center justify-center">
+                    <i class="fa-solid fa-map text-xl"></i>
+                </div>
+                高中生人際互動背景地圖
+            </h3>
+            <button id="closeMapBtn" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-red-500 text-slate-200 hover:text-white font-bold transition-all shadow-lg border border-slate-600 hover:border-red-400 flex items-center gap-2">
+                關閉地圖 <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="flex-grow overflow-auto flex justify-center items-start p-4 md:p-8 relative">
+             <!-- 載入中提示 -->
+             <div class="absolute inset-0 flex items-center justify-center z-[-1]">
+                 <span class="text-slate-500 animate-pulse"><i class="fa-solid fa-spinner fa-spin mr-2"></i>地圖載入中...</span>
+             </div>
+            <img src="人際互動背景地圖.png" alt="人際互動背景地圖" class="w-full max-w-[1400px] h-auto object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)] border-4 border-slate-800 bg-slate-800" onerror="this.onerror=null; this.alt='圖片載入失敗，請確認檔名是否為 人際互動背景地圖.png'; this.classList.add('p-10','text-center','text-red-400');">
+        </div>
+        <div class="p-4 bg-slate-900 border-t border-slate-800 text-center shrink-0">
+            <p class="text-sm text-brand-300 font-bold bg-brand-900/30 inline-block px-4 py-2 rounded-lg border border-brand-500/30">
+                💡 學習指引：在遊戲中遇到抉擇時，可以隨時打開此圖，對照該事件屬於哪個人際場域，思考應對策略。
+            </p>
+        </div>
+    </div>
+
+    <!-- === 塔羅牌 Modal === -->
+    <div id="tarotModal" class="fixed inset-0 z-[60] hidden opacity-0 transition-opacity duration-500 overflow-hidden">
+        <!-- 塔羅牌專屬地圖背景 (已修正檔名) -->
+        <div class="absolute inset-0 bg-cover bg-center opacity-30 animate-pan-bg" style="background-image: url('人際互動背景地圖.png'); animation-duration: 45s; animation-direction: reverse;"></div>
+        <div class="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/80 to-slate-950/95 backdrop-blur-sm"></div>
+        
+        <div class="relative z-10 w-full h-full flex items-center justify-center p-4 overflow-y-auto">
+            <div class="max-w-4xl w-full flex flex-col items-center text-center py-10">
+                <h2 class="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-purple-400 mb-4 animate-float">
+                    <i class="fa-solid fa-sparkles mr-2"></i> 抽取潛意識原型
+                </h2>
+                <p class="text-base text-slate-300 mb-10 max-w-lg font-medium drop-shadow-md">
+                    在進入人際戰場前，請憑直覺選擇一張牌。<br>這張牌將賦予你特殊的社交特質，解鎖隱藏選項。
+                </p>
+                <div class="flex flex-wrap justify-center gap-6 sm:gap-10 w-full" id="tarotDeck"></div>
+                
+                <div class="mt-12 opacity-0 transition-opacity duration-500" id="tarotConfirmArea">
+                    <div class="bg-slate-900/80 border border-purple-500/30 rounded-2xl p-6 mb-6 max-w-xl mx-auto shadow-[0_0_30px_rgba(139,92,246,0.2)] backdrop-blur-md">
+                        <p id="tarotDescText" class="text-slate-200 font-medium text-lg"></p>
+                    </div>
+                    <button id="startTarotGameBtn" class="px-10 py-4 bg-gradient-to-r from-purple-600 to-brand-600 hover:from-purple-500 hover:to-brand-500 text-white rounded-full font-black text-xl shadow-[0_0_25px_rgba(139,92,246,0.5)] transition-all transform hover:scale-105 border border-purple-400/50">
+                        帶上這份力量，開始模擬
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === 結局 Modal === -->
+    <div id="endingModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-50 flex items-center justify-center p-4 hidden transition-opacity duration-500">
+        <div class="bg-slate-900 border border-brand-500/40 rounded-3xl max-w-lg w-full p-8 flex flex-col items-center text-center relative overflow-hidden shadow-2xl">
+            <!-- 裝飾光暈 -->
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-brand-500/20 blur-3xl rounded-full"></div>
+            
+            <div class="w-20 h-20 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-4xl mb-6 border border-brand-500/30 shadow-[0_0_20px_rgba(139,92,246,0.3)] z-10">
+                <i class="fa-solid fa-flag-checkered"></i>
+            </div>
+            <h2 class="text-3xl font-black text-white mb-2 z-10">情境模擬完成</h2>
+            <p class="text-slate-400 mb-8 z-10">你在這次的社交考驗中，展現了獨特的溝通風格。</p>
+            
+            <div class="w-full bg-slate-800/80 rounded-2xl p-6 mb-8 border border-slate-700 text-left z-10 relative">
+                <div class="absolute -top-3 left-6 bg-slate-700 text-brand-300 px-3 py-0.5 rounded-full text-xs font-bold border border-slate-600">
+                    <i class="fa-solid fa-microscope mr-1"></i> 溝通性格剖析
+                </div>
+                <p id="endingAnalysis" class="text-base text-slate-300 leading-relaxed mt-2">
+                    分析中...
+                </p>
+            </div>
+
+            <button id="endRestartBtn" class="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-lg transition-all border border-slate-600 hover:border-brand-500/50 shadow-lg z-10">
+                重新開始遊戲 <i class="fa-solid fa-rotate-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- === 背景音樂 === -->
+    <audio id="bgMusic" src="操場風鈴.mp3" loop preload="auto"></audio>
+
+    <script>
+        // === 資料設定 ===
+
+        // 塔羅牌資料
+        const TAROT_CARDS = [
+            { id: 'chariot', name: '戰車', icon: 'fa-chess-knight', desc: '賦予你「結構與果斷」的力量，善於制定規則解決情緒衝突。' },
+            { id: 'hermit', name: '隱者', icon: 'fa-moon', desc: '賦予你「冷靜與洞察」的力量，能看透他人隱藏的焦慮與需求。' },
+            { id: 'fool', name: '愚者', icon: 'fa-leaf', desc: '賦予你「幽默與化解」的力量，用自嘲或輕鬆的態度打破僵局。' }
+        ];
+
+        // 突發事件資料
+        const RANDOM_EVENTS = [
+            {
+                title: 'IG 限動風波',
+                desc: '你滑手機發現別班同學發了一篇限動：「有些人表面裝好人，背後雷隊友。」你覺得他可能在說你！',
+                choices: [
+                    { text: '立刻私訊對質：「你是在說我嗎？」', battery: -10, distance: -15, msg: '過度反應，氣氛變得尷尬。' },
+                    { text: '裝作沒看到，但心裡很悶。', battery: -20, distance: 0, msg: '內耗增加，社交電量下降。' },
+                    { text: '先放下手機，告訴自己「不一定是說我，先專心處理眼前的報告」。', battery: 10, distance: 0, msg: '成功的認知轉念！守住了電量。' }
+                ]
+            }
+        ];
+
+        // 圖片讀取失敗時的備用立繪函式
+        window.handleImgError = function(elem) {
+            elem.outerHTML = `
+            <svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg" class="w-full h-full drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                <path d="M40 300 C 40 200, 160 200, 160 300 Z" fill="#4f46e5" />
+                <path d="M70 300 L 100 230 L 130 300 Z" fill="rgba(255,255,255,0.2)" />
+                <rect x="90" y="130" width="20" height="30" fill="#fcd34d" />
+                <circle cx="100" cy="90" r="45" fill="#fcd34d" />
+                <path d="M50 90 C 50 30, 150 30, 150 90 L 140 60 L 60 60 Z" fill="#1e293b" />
+                <g transform="translate(100, 95)" text-anchor="middle" font-size="24" font-family="Arial" fill="#1e293b">
+                    <text y="5">• •</text>
+                    <text y="20" font-size="12">︶</text>
+                </g>
+            </svg>`;
+        };
+
+        // 角色繪製函式 (視覺小說立繪)
+        const generateCharacterSVG = (type, mood) => {
+            // 如果是阿翔，直接回傳圖片標籤 (加入 onerror 備用機制)
+            if (type === 'xiang') {
+                return `<img src="男學生.png" alt="阿翔" onerror="window.handleImgError(this)" class="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">`;
+            }
+
+            // 其他角色，保留原本的幾何 SVG
+            let colorPrimary = type === 'yuting' ? '#0d9488' : '#e11d48'; // 婷(青), 老師(紅)
+            let colorSkin = '#fcd34d';
+            
+            // 根據心情微調
+            if(mood === 'angry') { colorPrimary = '#dc2626'; colorSkin = '#fca5a5'; }
+            if(mood === 'sad') { colorPrimary = '#475569'; colorSkin = '#cbd5e1'; }
+
+            return `
+            <svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+                <!-- 身體 -->
+                <path d="M40 300 C 40 200, 160 200, 160 300 Z" fill="${colorPrimary}" />
+                <!-- 衣服細節 -->
+                <path d="M70 300 L 100 230 L 130 300 Z" fill="rgba(255,255,255,0.2)" />
+                <!-- 脖子 -->
+                <rect x="90" y="130" width="20" height="30" fill="${colorSkin}" />
+                <!-- 頭部 -->
+                <circle cx="100" cy="90" r="45" fill="${colorSkin}" />
+                <!-- 頭髮 (簡單幾何) -->
+                ${type === 'yuting' 
+                    ? `<path d="M55 100 C 40 40, 160 40, 145 100 L 135 150 L 100 130 L 65 150 Z" fill="#334155" />` // 長髮
+                    : `<path d="M60 80 C 60 40, 140 40, 140 80 L 100 50 Z" fill="#0f172a" />` // 老師
+                }
+                <!-- 表情符號代替複雜五官 -->
+                <g transform="translate(100, 95)" text-anchor="middle" font-size="24" font-family="Arial" fill="#1e293b">
+                    <text y="5">${mood === 'angry' ? '> <' : mood === 'sad' ? 'T T' : '• •'}</text>
+                    <text y="20" font-size="12">${mood === 'angry' ? '〰' : mood === 'sad' ? '︵' : '︶'}</text>
+                </g>
+            </svg>`;
+        };
+
+        // 劇本與關卡設定
+        const SCENARIOS = [
+            {
+                id: 1, characterId: "xiang", characterName: "組員 阿翔", mood: "normal",
+                location: "高一(3)班 教室", bgGradient: "from-blue-900/40 to-slate-900",
+                dialogue: "「這週末我要去補習街衝刺耶，那簡報就你們先做，我報告當天再上台負責講。這樣分工大家沒意見吧？」",
+                innerTheater: "他明知道我也要補習！如果我現在拒絕他，他以後一定會排擠我...",
+                teachingTip: "這是典型的「搭便車」情境。引導學生思考：為了避免衝突而默默接受，會對自己的心理狀態造成什麼影響？",
+                choices: [
+                    { text: "「好啦，那我先做...」默默承擔。", style: "討好", battery: -25, distance: 10, mask: 30, feedback: "【討好面具】雖然避免了衝突，但你內心累積了不平與怨氣。阿翔真實OS：「呼，太好了，他答應了，其實我剛提出來有點心虛。」" },
+                    { text: "「每次都你負責講，我們做苦力！不要做就算了！」大聲反駁。", style: "攻擊", battery: -10, distance: -30, mask: -10, feedback: "【防衛攻擊】你宣洩了不滿，但也讓關係結冰。阿翔真實OS：「幹嘛這麼兇？我只是問問看，不想做可以講啊。」" },
+                    { text: "「我也要補習。你可以平日晚上寫大綱，週末我們再美化嗎？」", style: "斷言", battery: 15, distance: 5, mask: -20, feedback: "【健康斷言】你溫和堅定地守住界線。阿翔真實OS：「嗯...他說得有理，我確實該負責一點，這樣分工滿公平的。」" },
+                    { tarotReq: "chariot", text: "【戰車之盾】「沒問題，阿翔負責講。那我現在開共筆，你今天把大綱列出來，大家責任清楚！」", style: "結構化", battery: 20, distance: 0, mask: -5, feedback: "【結構化溝通】戰車的力量讓你不用情緒對抗，而是用「規則」綁定責任。阿翔覺得這安排很合理，無法推託。" }
+                ]
+            },
+            {
+                id: 2, characterId: "yuting", characterName: "組員 雨婷", mood: "sad",
+                location: "放學後的圖書館", bgGradient: "from-teal-900/40 to-slate-900",
+                dialogue: "（拉了拉你的衣角，小聲地說）「那個...其實我週末也要回阿嬤家，我的部分可不可以也請你先幫忙？我下週會請你喝飲料！」",
+                innerTheater: "天啊，連雨婷也這樣！如果我不幫她，她會不會覺得我很計較？",
+                teachingTip: "面對內向弱勢的同學請求，更容易引發「無法說不」的罪惡感。這是練習畫定界線的好時機。",
+                choices: [
+                    { text: "「沒關係啦！我幫你做，飲料不用了。」微笑答應。", style: "討好", battery: -30, distance: 15, mask: 30, feedback: "【過度承擔】你再次攬下責任，電量大減。雨婷真實OS：「太感謝了！不過總覺得對他有點抱歉...」" },
+                    { text: "「大家都有事，那我們這組就放爛吧！」冷笑嘲諷。", style: "消極", battery: -20, distance: -20, mask: 0, feedback: "【被動攻擊】你用擺爛來抗議。雨婷真實OS：「對不起...我是不是把氣氛弄得很糟...」" },
+                    { text: "「抱歉，我週末負荷也滿了。你能在搭車路上先用手機查好資料嗎？」", style: "斷言", battery: 15, distance: 0, mask: -15, feedback: "【溫和拒絕】拒絕事情不等於拒絕人，你提供了替代方案。雨婷真實OS：「原來拒絕可以這麼溫和，那我路上盡量用手機查。」" },
+                    { tarotReq: "hermit", text: "【隱者之眼】「我看出你很焦慮。沒關係，你週末安心回阿嬤家，但這兩天晚上你要把首頁版面排好喔。」", style: "同理", battery: 20, distance: 10, mask: -10, feedback: "【深度同理】你察覺了她的焦慮，給予彈性但也要求付出。雨婷覺得被理解，並願意在平日加倍努力。" }
+                ]
+            },
+            {
+                id: 3, characterId: "teacher", characterName: "張導師", mood: "angry",
+                location: "導師辦公室", bgGradient: "from-red-900/30 to-slate-900",
+                dialogue: "「你們這組的報告進度怎麼嚴重落後？身為組長，你是不是沒有負起督促的責任？」",
+                innerTheater: "老師根本不知道其他人多雷！為什麼只怪我？大人都這樣不分青紅皂白！",
+                teachingTip: "面對權威人物的誤解，學生常會選擇吞忍或情緒爆發。引導學生學習「客觀陳述事實」。",
+                choices: [
+                    { text: "「對不起老師，是我的錯，我會趕快完成...」低頭認錯。", style: "討好", battery: -20, distance: 20, mask: 20, feedback: "【權威屈服】你為了平息事件而認下不屬於你的錯。老師OS：「唉，這孩子怎麼總是這麼沒自信。」" },
+                    { text: "「你以為我想當組長嗎？其他兩個人根本不做事啊！」生氣大喊。", style: "攻擊", battery: -15, distance: -30, mask: -20, feedback: "【情緒爆發】頂嘴讓焦點轉移到了你的態度上。老師OS：「態度怎麼這麼差！原本想幫忙解決的...」" },
+                    { text: "「老師，我們遇到一些困難。阿翔週末補習，雨婷回老家，我們正在協調分工，請再給我們一天時間統整。」", style: "斷言", battery: 15, distance: 0, mask: -25, feedback: "【客觀陳述】你沒有指責組員，也沒有怪罪自己，而是陳述客觀事實與解決方案。老師OS：「原來如此，看來他有在處理，我錯怪他了。」" },
+                    { tarotReq: "fool", text: "【愚者之心】「老師息怒～我們這組正在經歷『陣痛期』啦！不過我們已經分配好工作了，保證明天交出漂亮大綱！」", style: "幽默", battery: 25, distance: 10, mask: 0, feedback: "【幽默化解】愚者的力量讓你用輕鬆的話語化解了老師的嚴肅。老師OS：「這小子還真樂觀，好吧，就再相信你們一次。」" }
+                ]
+            }
+        ];
+
+        // === 狀態與 DOM ===
+        let gameState = { step: 0, activeTarot: null, battery: 80, distance: 50, mask: 30, styleCount: { '討好': 0, '攻擊': 0, '斷言': 0, '其他': 0 } };
+
+        const els = {
+            startScreen: document.getElementById('startScreen'),
+            enterGameBtn: document.getElementById('enterGameBtn'),
+            
+            mapModal: document.getElementById('mapModal'),
+            openMapBtn: document.getElementById('openMapBtn'),
+            closeMapBtn: document.getElementById('closeMapBtn'),
+
+            tarotModal: document.getElementById('tarotModal'),
+            tarotDeck: document.getElementById('tarotDeck'),
+            tarotConfirmArea: document.getElementById('tarotConfirmArea'),
+            tarotDescText: document.getElementById('tarotDescText'),
+            startTarotGameBtn: document.getElementById('startTarotGameBtn'),
+            
+            vnStage: document.getElementById('vnStage'),
+            stageBg: document.getElementById('stageBg'),
+            sceneLocation: document.getElementById('sceneLocation'),
+            activeTarotDisplay: document.getElementById('activeTarotDisplay'),
+            activeTarotName: document.getElementById('activeTarotName'),
+            
+            characterSpriteContainer: document.getElementById('characterSpriteContainer'),
+            characterSVG: document.getElementById('characterSVG'),
+            
+            speakerName: document.getElementById('speakerName'),
+            dialogText: document.getElementById('dialogText'),
+            innerTheater: document.getElementById('innerTheater'),
+            innerTheaterText: document.getElementById('innerTheaterText'),
+            
+            choiceContainer: document.getElementById('choiceContainer'),
+            feedbackPanel: document.getElementById('feedbackPanel'),
+            feedbackText: document.getElementById('feedbackText'),
+            nextStepBtn: document.getElementById('nextStepBtn'),
+            
+            batteryVal: document.getElementById('batteryVal'),
+            batteryBar: document.getElementById('batteryBar'),
+            distanceVal: document.getElementById('distanceVal'),
+            distanceIndicator: document.getElementById('distanceIndicator'),
+            maskVal: document.getElementById('maskVal'),
+            maskBar: document.getElementById('maskBar'),
+            teachingTip: document.getElementById('teachingTip'),
+
+            randomEventOverlay: document.getElementById('randomEventOverlay'),
+            eventDesc: document.getElementById('eventDesc'),
+            eventChoices: document.getElementById('eventChoices'),
+
+            endingModal: document.getElementById('endingModal'),
+            endingAnalysis: document.getElementById('endingAnalysis'),
+            endRestartBtn: document.getElementById('endRestartBtn'),
+            restartBtn: document.getElementById('restartBtn'),
+            
+            bgMusic: document.getElementById('bgMusic'),
+            toggleMusicBtn: document.getElementById('toggleMusicBtn')
+        };
+
+        // === 初始化與流程 ===
+
+        els.enterGameBtn.addEventListener('click', () => {
+            // 點擊進入時嘗試播放背景音樂
+            els.bgMusic.volume = 0.4; // 設定背景音量為 40%
+            els.bgMusic.play().then(() => {
+                updateMusicIcon(true);
+            }).catch(err => console.log("瀏覽器阻擋了自動播放，需等待使用者互動", err));
+
+            els.startScreen.classList.add('opacity-0');
+            setTimeout(() => {
+                els.startScreen.classList.add('hidden');
+                startTarotPhase();
+            }, 1000);
+        });
+
+        // 音樂切換按鈕邏輯
+        els.toggleMusicBtn.addEventListener('click', () => {
+            if (els.bgMusic.paused) {
+                els.bgMusic.play();
+                updateMusicIcon(true);
+            } else {
+                els.bgMusic.pause();
+                updateMusicIcon(false);
+            }
+        });
+
+        function updateMusicIcon(isPlaying) {
+            if (isPlaying) {
+                els.toggleMusicBtn.innerHTML = '<i class="fa-solid fa-music"></i>';
+                els.toggleMusicBtn.classList.remove('text-slate-400');
+                els.toggleMusicBtn.classList.add('text-brand-400');
+            } else {
+                els.toggleMusicBtn.innerHTML = '<i class="fa-solid fa-music-slash"></i>';
+                els.toggleMusicBtn.classList.remove('text-brand-400');
+                els.toggleMusicBtn.classList.add('text-slate-400');
+            }
+        }
+
+        function initGame(skipStartScreen = false) {
+            gameState = { step: 0, activeTarot: null, battery: 80, distance: 50, mask: 30, styleCount: { '討好': 0, '攻擊': 0, '斷言': 0, '其他': 0 } };
+            updateDashboard();
+            els.endingModal.classList.add('hidden');
+            
+            if(!skipStartScreen) {
+                els.startScreen.classList.remove('hidden');
+                setTimeout(() => els.startScreen.classList.remove('opacity-0'), 50);
+            } else {
+                startTarotPhase();
+            }
+        }
+
+        // --- 地圖邏輯 ---
+        els.openMapBtn.addEventListener('click', () => {
+            els.mapModal.classList.remove('hidden');
+            // 強制重繪以確保動畫觸發
+            void els.mapModal.offsetWidth; 
+            els.mapModal.classList.remove('opacity-0');
+        });
+        
+        els.closeMapBtn.addEventListener('click', () => {
+            els.mapModal.classList.add('opacity-0');
+            setTimeout(() => els.mapModal.classList.add('hidden'), 300);
+        });
+
+        // --- 塔羅牌邏輯 ---
+        function startTarotPhase() {
+            els.tarotModal.classList.remove('hidden');
+            setTimeout(() => els.tarotModal.classList.remove('opacity-0'), 50);
+            
+            els.tarotConfirmArea.classList.remove('opacity-100');
+            els.tarotConfirmArea.classList.add('opacity-0');
+            els.tarotDeck.innerHTML = '';
+            
+            const shuffled = [...TAROT_CARDS].sort(() => 0.5 - Math.random());
+            
+            shuffled.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'tarot-card w-28 h-40 sm:w-36 sm:h-52 animate-slide-up';
+                cardEl.style.animationDelay = `${index * 0.15}s`;
+                cardEl.innerHTML = `
+                    <div class="tarot-inner shadow-2xl">
+                        <div class="tarot-front bg-slate-900 border-2 border-purple-400 rounded-2xl flex flex-col items-center justify-center p-2 text-brand-300">
+                            <i class="fa-solid ${card.icon} text-4xl sm:text-5xl mb-3"></i>
+                            <span class="font-black text-sm sm:text-lg">${card.name}</span>
+                        </div>
+                        <div class="tarot-back flex items-center justify-center border-purple-500/50 shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+                            <i class="fa-solid fa-moon text-indigo-300 opacity-60 text-3xl"></i>
+                        </div>
+                    </div>
+                `;
+                
+                cardEl.addEventListener('click', () => {
+                    if (gameState.activeTarot) return;
+                    cardEl.classList.add('flipped');
+                    cardEl.querySelector('.tarot-front').classList.add('bg-brand-900/60', 'shadow-[0_0_30px_#8b5cf6]');
+                    
+                    gameState.activeTarot = card.id;
+                    els.activeTarotName.textContent = card.name;
+                    els.tarotDescText.innerHTML = `你抽到了 <span class="text-brand-400 font-black text-2xl mx-2">${card.name}</span>！<br><span class="text-base text-slate-400 mt-3 block leading-relaxed">${card.desc}</span>`;
+                    
+                    setTimeout(() => {
+                        els.tarotConfirmArea.classList.remove('opacity-0', 'pointer-events-none');
+                        els.tarotConfirmArea.classList.add('opacity-100');
+                    }, 800);
+                });
+                
+                els.tarotDeck.appendChild(cardEl);
+            });
+        }
+
+        els.startTarotGameBtn.addEventListener('click', () => {
+            els.tarotModal.classList.add('opacity-0');
+            setTimeout(() => {
+                els.tarotModal.classList.add('hidden');
+                els.activeTarotDisplay.classList.remove('hidden');
+                els.activeTarotDisplay.classList.add('flex');
+                loadScenario();
+            }, 500);
+        });
+
+        // --- VN 核心邏輯 ---
+        function loadScenario() {
+            if (gameState.step >= SCENARIOS.length) {
+                showEnding();
+                return;
+            }
+
+            const s = SCENARIOS[gameState.step];
+            
+            els.feedbackPanel.classList.add('hidden');
+            els.choiceContainer.classList.remove('hidden');
+            els.innerTheater.classList.add('hidden');
+            els.characterSpriteContainer.classList.remove('opacity-100', 'translate-y-0');
+            els.characterSpriteContainer.classList.add('opacity-0', 'translate-y-10');
+
+            setTimeout(() => {
+                els.sceneLocation.innerHTML = `<i class="fa-solid fa-location-dot text-brand-400"></i> <span>${s.location}</span>`;
+                els.stageBg.className = `absolute inset-0 bg-gradient-to-b ${s.bgGradient} transition-colors duration-1000`;
+                els.teachingTip.textContent = s.teachingTip;
+                
+                els.speakerName.textContent = s.characterName;
+                els.dialogText.textContent = s.dialogue;
+                els.characterSVG.innerHTML = generateCharacterSVG(s.characterId, s.mood);
+                
+                els.characterSpriteContainer.classList.remove('opacity-0', 'translate-y-10');
+                els.characterSpriteContainer.classList.add('opacity-100', 'translate-y-0');
+
+                setTimeout(() => {
+                    els.innerTheaterText.textContent = s.innerTheater;
+                    els.innerTheater.classList.remove('hidden');
+                    els.innerTheater.classList.add('animate-fade-in');
+                    playTone(600, 'sine', 0.1);
+                }, 800);
+
+                renderChoices(s);
+            }, 300);
+        }
+
+        function renderChoices(scenario) {
+            els.choiceContainer.innerHTML = '';
+            
+            scenario.choices.forEach((choice, index) => {
+                if (choice.tarotReq && choice.tarotReq !== gameState.activeTarot) return;
+
+                const btn = document.createElement('button');
+                const isTarot = choice.tarotReq;
+                
+                btn.className = `text-left p-4 rounded-xl border transition-all duration-300 hover:-translate-y-1 ${
+                    isTarot 
+                    ? 'bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border-purple-500/50 hover:border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)] text-purple-100' 
+                    : 'bg-slate-800/80 border-slate-700 hover:bg-slate-700 text-slate-200 hover:border-slate-500'
+                } animate-slide-up`;
+                btn.style.animationDelay = `${index * 0.1}s`;
+                
+                btn.innerHTML = `
+                    <div class="font-bold text-sm mb-1 ${isTarot ? 'text-purple-300' : 'text-slate-400'}">
+                        ${isTarot ? '<i class="fa-solid fa-star mr-1"></i> 靈感解鎖' : `選擇 ${index + 1}`}
+                    </div>
+                    <div class="text-sm leading-relaxed">${choice.text}</div>
+                `;
+                
+                btn.addEventListener('click', () => handleChoiceClick(choice, btn));
+                els.choiceContainer.appendChild(btn);
+            });
+        }
+
+        function handleChoiceClick(choice, btnElement) {
+            playTone(800, 'triangle', 0.1);
+            
+            Array.from(els.choiceContainer.children).forEach(child => {
+                if(child !== btnElement) child.classList.add('opacity-0', 'pointer-events-none');
+            });
+            
+            setTimeout(() => {
+                els.choiceContainer.classList.add('hidden');
+                
+                gameState.battery = Math.min(100, Math.max(0, gameState.battery + choice.battery));
+                gameState.distance = Math.min(100, Math.max(0, gameState.distance + choice.distance));
+                gameState.mask = Math.min(100, Math.max(0, gameState.mask + choice.mask));
+                
+                if (gameState.styleCount[choice.style] !== undefined) {
+                    gameState.styleCount[choice.style]++;
+                } else {
+                    gameState.styleCount['其他']++;
+                }
+                
+                updateDashboard();
+
+                els.feedbackText.innerHTML = choice.feedback;
+                els.feedbackPanel.classList.remove('hidden');
+                els.feedbackPanel.classList.add('animate-fade-in');
+            }, 300);
+        }
+
+        els.nextStepBtn.addEventListener('click', () => {
+            if (Math.random() < 0.3 && gameState.step < SCENARIOS.length - 1) {
+                triggerRandomEvent();
+            } else {
+                gameState.step++;
+                loadScenario();
+            }
+        });
+
+        // --- 突發事件 ---
+        function triggerRandomEvent() {
+            playTone(300, 'square', 0.3);
+            const event = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
+            
+            els.eventDesc.textContent = event.desc;
+            els.eventChoices.innerHTML = '';
+            
+            event.choices.forEach(choice => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left p-3 bg-black/50 border border-slate-700 rounded-lg hover:bg-slate-800 hover:border-slate-500 transition-colors text-sm text-slate-200';
+                btn.textContent = choice.text;
+                btn.addEventListener('click', () => {
+                    gameState.battery = Math.min(100, Math.max(0, gameState.battery + choice.battery));
+                    gameState.distance = Math.min(100, Math.max(0, gameState.distance + choice.distance));
+                    updateDashboard();
+                    
+                    els.eventDesc.innerHTML = `<span class="text-brand-400 font-bold">結果：</span>${choice.msg}`;
+                    els.eventChoices.innerHTML = `<button class="w-full py-3 mt-4 bg-red-900/80 hover:bg-red-800 text-white font-bold rounded-xl transition-all border border-red-500/50 shadow-lg" onclick="closeRandomEvent()">返回主線</button>`;
+                });
+                els.eventChoices.appendChild(btn);
+            });
+            
+            els.randomEventOverlay.classList.remove('hidden');
+            els.randomEventOverlay.classList.add('flex');
+        }
+
+        window.closeRandomEvent = () => {
+            els.randomEventOverlay.classList.add('hidden');
+            els.randomEventOverlay.classList.remove('flex');
+            gameState.step++;
+            loadScenario();
+        };
+
+        // --- 更新 UI ---
+        function updateDashboard() {
+            els.batteryVal.textContent = `${gameState.battery}%`;
+            
+            let distText = "舒適區";
+            if(gameState.distance < 35) distText = "太遠 (疏離)";
+            else if(gameState.distance > 65) distText = "太近 (窒息)";
+            els.distanceVal.textContent = distText;
+            
+            els.maskVal.textContent = `${gameState.mask}%`;
+
+            els.batteryBar.style.width = `${gameState.battery}%`;
+            els.distanceIndicator.style.left = `${gameState.distance}%`;
+            els.maskBar.style.width = `${gameState.mask}%`;
+            
+            els.batteryVal.className = `text-sm font-black ${gameState.battery < 30 ? 'text-red-400 animate-pulse' : 'text-white'}`;
+        }
+
+        function showEnding() {
+            els.endingModal.classList.remove('hidden');
+            playTone(800, 'sine', 0.1); setTimeout(() => playTone(1000, 'sine', 0.3), 150);
+            
+            let topStyle = Object.keys(gameState.styleCount).reduce((a, b) => gameState.styleCount[a] > gameState.styleCount[b] ? a : b);
+            
+            let analysis = "";
+            if(topStyle === '討好') {
+                analysis = "你傾向使用<span class='text-pink-400 font-bold ml-1 mr-1'>「討好」</span>的溝通策略。你很在乎關係的和諧，但常常犧牲自己的需求。試著練習溫和但堅定地表達界線，保護你的社交電量。";
+            } else if (topStyle === '攻擊') {
+                analysis = "你傾向使用<span class='text-red-400 font-bold ml-1 mr-1'>「防衛/攻擊」</span>的溝通策略。你直來直往，不願意委屈自己，但有時會讓對方感到受挫。試著先理解對方的難處，再表達自己的立場。";
+            } else if (topStyle === '斷言' || gameState.activeTarot) {
+                analysis = "你展現了優秀的<span class='text-emerald-400 font-bold ml-1 mr-1'>「健康斷言」</span>能力！你能在保護自己界線的同時，也尊重對方的感受，並提出建設性的解決方案。繼續保持這份成熟的社交智慧！";
+            } else {
+                analysis = "你的溝通風格多變，可能還在尋找最舒適的平衡點。每一次的互動都是學習，請繼續探索適合你的溝通方式。";
+            }
+
+            els.endingAnalysis.innerHTML = analysis;
+        }
+
+        // --- 工具 ---
+        function playTone(freq, type = 'sine', duration = 0.1) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        els.restartBtn.addEventListener('click', () => initGame(true));
+        els.endRestartBtn.addEventListener('click', () => initGame(true));
+
+        // 啟動遊戲 (停留在主畫面)
+        initGame();
+
+    </script>
+</body>
+</html>
